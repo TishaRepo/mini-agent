@@ -10,7 +10,7 @@ class Orchestrator:
         """
         results = []
         
-        for step in plan:
+        for i, step in enumerate(plan):
             if step.action not in AVAILABLE_TOOLS:
                 return {
                     "status": "error",
@@ -28,15 +28,19 @@ class Orchestrator:
                 results.append({
                     "action": step.action,
                     "parameters": step.parameters,
-                    "result": tool_result
+                    "result": tool_result,
+                    "status": "completed" if tool_result.get("success") else "failed"
                 })
                 
-                # Check for failure based on the mock return schema
+                # Guardrail: Check for failure based on the mock return schema
                 if not tool_result.get("success", False):
-                    # Short-circuit execution immediately upon failure
+                    # Identify remaining steps that will be skipped
+                    skipped_steps = [s.action for s in plan[i+1:]]
+                    skip_msg = f" Secondary tasks skipped: {', '.join(skipped_steps)}." if skipped_steps else ""
+                    
                     return {
                         "status": "failed",
-                        "message": f"Action '{step.action}' failed: {tool_result.get('error', 'Unknown error')}. Further steps aborted.",
+                        "message": f"Primary action '{step.action}' failed. Workflow halted.{skip_msg}",
                         "steps_executed": results
                     }
                     
@@ -45,7 +49,8 @@ class Orchestrator:
                 results.append({
                     "action": step.action,
                     "parameters": step.parameters,
-                    "result": {"success": False, "error": str(e)}
+                    "result": {"success": False, "error": str(e)},
+                    "status": "error"
                 })
                 return {
                     "status": "error",

@@ -14,20 +14,24 @@ def parse_request(prompt: str) -> List[PlanStep]:
     If OPENAI_API_KEY is available in the environment, it uses OpenAI.
     Otherwise, it uses a regex-based mock parser.
     """
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     
     if api_key:
         try:
             return _parse_with_openai(prompt, api_key)
         except Exception as e:
-            print(f"OpenAI API failed ({e}). Falling back to mock parser...")
+            print(f"Groq API failed ({e}). Falling back to mock parser...")
             return _parse_with_mock(prompt)
     else:
         return _parse_with_mock(prompt)
 
 def _parse_with_openai(prompt: str, api_key: str) -> List[PlanStep]:
-    from openai import OpenAI
-    client = OpenAI(api_key=api_key)
+    from groq import Groq
+    
+    # Using Groq API for faster, cost-effective LLM inference
+    model_name = os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile")
+    
+    client = Groq(api_key=api_key)
     
     system_prompt = """
     You are an intelligent order processing planner. 
@@ -45,7 +49,7 @@ def _parse_with_openai(prompt: str, api_key: str) -> List[PlanStep]:
     """
     
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=model_name,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -72,32 +76,51 @@ def _parse_with_mock(prompt: str) -> List[PlanStep]:
     steps = []
     lower_prompt = prompt.lower()
     
-    # Extract order_id if present
-    order_match = re.search(r'(?:order\s*#?|#)(\w+)', lower_prompt)
-    if "cancel" in lower_prompt and order_match:
+    # Extract order_id if present (handles #123, 123, order 123, order#123)
+    order_match = re.search(r'(?:order\s*#?\s*|#)(\w+)', lower_prompt)
+    
+    # 1. Detect cancellation intent
+    cancel_verbs = ["cancel", "delete", "remove", "stop", "abort", "close", "void"]
+    found_cancel = any(verb in lower_prompt for verb in cancel_verbs)
+    
+    if found_cancel and order_match:
         order_id = order_match.group(1)
         steps.append(PlanStep(
             action="cancel_order",
             parameters={"order_id": order_id}
         ))
-        
-    # Extract email if present
-    email_match = re.search(r'([\w\.-]+@[\w\.-]+)', lower_prompt)
-    if "email" in lower_prompt and email_match:
+    
+    # 2. Extract email if present
+    email_match = re.search(r'([\w\.-]+@[\w\.-]+\.\w+)', lower_prompt)
+    email_verbs = ["email", "mail", "send", "notify", "message", "contact"]
+    found_notify = any(verb in lower_prompt for verb in email_verbs) or email_match
+
+    if found_notify and email_match:
         email = email_match.group(1)
         
-        # Simple message generation referencing order if available
-        message = "Your request has been processed."
-        if order_match:
+        # Robust message generation based on actual context
+        if found_cancel:
             message = f"Your order #{order_match.group(1)} has been cancelled successfully."
+        elif order_match:
+            # Dynamically find the verb used before the word 'order' or '#'
+            verb_match = re.search(r'(\w+)\s+(?:order|#)', lower_prompt)
+            unsupported_verb = verb_match.group(1) if verb_match else "unknown_action"
+            
+            message = f"We received your request to '{unsupported_verb}' an order, but that action is currently unsupported."
+            steps.append(PlanStep(
+                action=unsupported_verb, # This will report correctly in the orchestrator
+                parameters={"order_id": order_match.group(1)}
+            ))
+        else:
+            message = "Your request has been processed."
             
         steps.append(PlanStep(
             action="send_email",
             parameters={"email": email, "message": message}
         ))
         
-    # Default fallback
+    # 3. Handle cases where the main intent is completely unknown to the mock parser
     if not steps:
-        raise ValueError("Could not parse actionable steps from the prompt. Please mention an order to cancel and an email address.")
+        raise ValueError("I understood your intent, but I cannot perform that action yet.Apologies !!!")
         
     return steps
