@@ -3,6 +3,10 @@ import json
 import re
 from typing import List
 from models import PlanStep
+from dotenv import load_dotenv
+
+# Load variables from .env file into os.environ
+load_dotenv()
 
 def parse_request(prompt: str) -> List[PlanStep]:
     """
@@ -13,7 +17,11 @@ def parse_request(prompt: str) -> List[PlanStep]:
     api_key = os.getenv("OPENAI_API_KEY")
     
     if api_key:
-        return _parse_with_openai(prompt, api_key)
+        try:
+            return _parse_with_openai(prompt, api_key)
+        except Exception as e:
+            print(f"OpenAI API failed ({e}). Falling back to mock parser...")
+            return _parse_with_mock(prompt)
     else:
         return _parse_with_mock(prompt)
 

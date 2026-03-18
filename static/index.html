@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Agent Orchestrator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="sparkle">✨</div>
+                <h1>Agent Orchestrator</h1>
+            </div>
+            <p>Your intelligent, event-driven assistant.</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <div class="input-wrapper">
+                    <textarea id="prompt-input" placeholder="e.g. Cancel my order #9921 and email me at user@example.com..." rows="3"></textarea>
+                </div>
+                <button id="submit-btn">
+                    <span>Process Request</span>
+                    <div class="loader" id="btn-loader"></div>
+                </button>
+            </div>
+
+            <div class="results-section hidden" id="results-section">
+                <div class="status-banner" id="status-banner">
+                    <span id="status-icon">✅</span>
+                    <h3 id="status-text">Success</h3>
+                </div>
+
+                <div class="message-box" id="message-box">
+                    All steps executed successfully.
+                </div>
+
+                <div class="timeline" id="timeline">
+                    <!-- Steps will be injected here via JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>
